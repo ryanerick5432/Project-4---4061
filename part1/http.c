@@ -40,6 +40,10 @@ int read_http_request(int fd, char *resource_name) {
             strcpy(resource_name, portion);
             checked++;
         }
+
+        if ((buf[bytes_read - 4] == '\r') && (buf[bytes_read - 1] == '\n')) {
+            break;
+        }
     }
     if (bytes_read < 0) {
         perror("read");
@@ -51,33 +55,69 @@ int read_http_request(int fd, char *resource_name) {
 int write_http_response(int fd, const char *resource_path) {
     // TODO Not yet implemented
     char buf[BUFSIZE];
-    struct stat *stat_buf;
-    if (stat(resource_path, stat_buf) == -1) {
+    memset(buf, 0, BUFSIZE);
+    char file_cpy[BUFSIZE];
+    memset(file_cpy, 0, BUFSIZE);
+    strcpy(file_cpy, resource_path);
+    char *portion = strtok(file_cpy, ".");
+    portion = strtok(NULL, ".");
+
+    char extens[6];
+    memset(extens, 0, 6);
+    sprintf(extens, ".%s", portion);
+    // const char *content_type = get_mime_type(extens);
+
+    struct stat stat_buf;
+    if (stat(resource_path, &stat_buf) == -1) {
         if (errno != ENOENT) {
             perror("stat");
             return -1;
         } else {
             strcpy(buf, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
 
-            if (write(fd, buf, strlen(buf) + 1) == -1) {
+            if (write(fd, buf, strlen(buf)) == -1) {
                 perror("write");
                 return 1;
             }
         }
     }
 
-    int content_length = stat_buf->st_size;
-    char *file_cpy;
-    strcpy(file_cpy, resource_path);
-    if (strtok(file_cpy, ".") == -1) {
-        perror("strtok");
+    int content_length = stat_buf.st_size;
+
+    sprintf(buf, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
+            get_mime_type(extens), content_length);
+
+    printf("%s\n", buf);
+    if (write(fd, buf, sizeof(buf)) == -1) {
+        perror("write");
         return -1;
     }
-    char *extens = ".";
-    strcat(extens, file_cpy);
-    char *content_type = get_mime_type(extens);
+    // following sourced from simple_http_client.c, from the lecture code.
+    int file_fd = open(resource_path, O_RDONLY, S_IRUSR);
+    if (file_fd == -1) {
+        perror("open");
+        return -1;
+    }
 
-    strcpy(buf, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n");
+    int bytes_read;
+    while ((bytes_read = read(file_fd, buf, BUFSIZE)) > 0) {
+        printf("%s\n", buf);
+        if (write(fd, buf, bytes_read) == -1) {
+            perror("write");
+            close(file_fd);
+            return -1;
+        }
+    }
+    if (bytes_read == -1) {
+        perror("read");
+        close(file_fd);
+        return -1;
+    }
+
+    if (close(file_fd) != 0) {
+        perror("close");
+        return -1;
+    }
 
     return 0;
 }

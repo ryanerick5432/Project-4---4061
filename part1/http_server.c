@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_INET;
 
-    if (getaddrinfo(serve_dir, port, &hints, &server) == -1) {
+    if (getaddrinfo(NULL, port, &hints, &server) == -1) {
         perror("getaddrinfo");
         return 1;
     }
