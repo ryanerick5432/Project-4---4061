@@ -54,20 +54,24 @@ int read_http_request(int fd, char *resource_name) {
 
 int write_http_response(int fd, const char *resource_path) {
     // TODO Not yet implemented
+
     char buf[BUFSIZE];
     memset(buf, 0, BUFSIZE);
+
     char file_cpy[BUFSIZE];
     memset(file_cpy, 0, BUFSIZE);
     strcpy(file_cpy, resource_path);
+
     char *portion = strtok(file_cpy, ".");
     portion = strtok(NULL, ".");
 
     char extens[6];
     memset(extens, 0, 6);
-    sprintf(extens, ".%s", portion);
+    snprintf(extens, 6, ".%s", portion);
     // const char *content_type = get_mime_type(extens);
 
     struct stat stat_buf;
+
     if (stat(resource_path, &stat_buf) == -1) {
         if (errno != ENOENT) {
             perror("stat");
@@ -79,16 +83,16 @@ int write_http_response(int fd, const char *resource_path) {
                 perror("write");
                 return 1;
             }
+            return 0;
         }
     }
 
     int content_length = stat_buf.st_size;
 
-    sprintf(buf, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
-            get_mime_type(extens), content_length);
+    snprintf(buf, BUFSIZE, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
+             get_mime_type(extens), content_length);
 
-    printf("%s\n", buf);
-    if (write(fd, buf, sizeof(buf)) == -1) {
+    if (write(fd, buf, strlen(buf)) == -1) {
         perror("write");
         return -1;
     }
@@ -101,7 +105,6 @@ int write_http_response(int fd, const char *resource_path) {
 
     int bytes_read;
     while ((bytes_read = read(file_fd, buf, BUFSIZE)) > 0) {
-        printf("%s\n", buf);
         if (write(fd, buf, bytes_read) == -1) {
             perror("write");
             close(file_fd);

@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
     memset(&hints, 0, sizeof(struct addrinfo));
     struct addrinfo *server;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_INET;
+    hints.ai_family = AF_UNSPEC;
 
     if (getaddrinfo(NULL, port, &hints, &server) == -1) {
         perror("getaddrinfo");
@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
     }
 
     int sockfd;
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    if ((sockfd = socket(server->ai_family, server->ai_socktype, server->ai_protocol)) == -1) {
         perror("socket");
         freeaddrinfo(&hints);
         return 1;
@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
 
     freeaddrinfo(server);
 
-    if (listen(sockfd, 0) == -1) {
+    if (listen(sockfd, LISTEN_QUEUE_LEN) == -1) {
         perror("listen");
         close(sockfd);
         return 1;
