@@ -49,6 +49,10 @@ int read_http_request(int fd, char *resource_name) {
         perror("read");
         return -1;
     }
+
+    if (strlen(resource_name) < 2) {
+        return -1;
+    }
     return 0;
 }
 

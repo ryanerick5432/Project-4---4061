@@ -86,10 +86,20 @@ int main(int argc, char **argv) {
 
         char temp[BUFSIZE];
         if (read_http_request(client_fd, temp) == -1) {
-            fprintf(stderr, "read_http_request");
-            close(client_fd);
-            close(sockfd);
-            return 1;
+            if (strlen(temp) < 3) {
+                strcpy(temp, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+
+                if (write(client_fd, temp, strlen(temp)) == -1) {
+                    perror("write");
+                    return 1;
+                }
+                return 0;
+            } else {
+                fprintf(stderr, "read_http_request");
+                close(client_fd);
+                close(sockfd);
+                return 1;
+            }
         }
         char path_var[BUFSIZE];
         strcpy(path_var, serve_dir);
