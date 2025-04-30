@@ -50,7 +50,7 @@ int read_http_request(int fd, char *resource_name) {
         return -1;
     }
 
-    if (strlen(resource_name) < 2) {
+    if (strlen(resource_name) < 3) {
         return -1;
     }
     return 0;

@@ -91,6 +91,7 @@ int main(int argc, char **argv) {
 
                 if (write(client_fd, temp, strlen(temp)) == -1) {
                     perror("write");
+                    close(sockfd);
                     return 1;
                 }
                 return 0;
