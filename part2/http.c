@@ -57,6 +57,7 @@ int read_http_request(int fd, char *resource_name) {
 }
 
 int write_http_response(int fd, const char *resource_path) {
+    // printf("test3\n");
     char buf[BUFSIZE];
     memset(buf, 0, BUFSIZE);
 
@@ -106,6 +107,7 @@ int write_http_response(int fd, const char *resource_path) {
     }
 
     int bytes_read;
+    // printf("test\n");
     while ((bytes_read = read(file_fd, buf, BUFSIZE)) > 0) {
         if (write(fd, buf, bytes_read) == -1) {
             perror("write");
@@ -113,6 +115,7 @@ int write_http_response(int fd, const char *resource_path) {
             return -1;
         }
     }
+    // printf("test2\n");
     if (bytes_read == -1) {
         perror("read");
         close(file_fd);

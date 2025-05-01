@@ -29,7 +29,7 @@ void handle_sigint(int signo) {
 void *thread_func(void *arg) {
     while (keep_going == 1) {
         connection_queue_t *queue = (connection_queue_t *) arg;
-        printf("start thread\n");
+        // printf("start thread\n");
 
         int client_fd = connection_queue_dequeue(queue);
         if (client_fd == -1) {
@@ -55,13 +55,13 @@ void *thread_func(void *arg) {
         char path_var[BUFSIZE];
         strcpy(path_var, serve_dir);
         strcat(path_var, temp);
-        printf("%s\n", path_var);
+        // printf("%s\n", path_var);
         if (write_http_response(client_fd, path_var) == -1) {
             fprintf(stderr, "write_http_request");
             close(client_fd);
             pthread_exit((void *) 1);
         }
-        printf("Finished Writing command: %s :\n", path_var);
+        // printf("Finished Writing command: %s :\n", path_var);
         if (close(client_fd) == -1) {
             perror("close");
             pthread_exit((void *) 1);
