@@ -29,7 +29,6 @@ void handle_sigint(int signo) {
 void *thread_func(void *arg) {
     while (keep_going == 1) {
         connection_queue_t *queue = (connection_queue_t *) arg;
-        printf("start thread\n");
 
         int client_fd = connection_queue_dequeue(queue);
         if (client_fd == -1) {
@@ -37,7 +36,7 @@ void *thread_func(void *arg) {
         }
 
         char temp[BUFSIZE];
-        printf("start read\n");
+
         if (read_http_request(client_fd, temp) == -1) {
             if (strlen(temp) < 3) {
                 strcpy(temp, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
@@ -56,13 +55,13 @@ void *thread_func(void *arg) {
         char path_var[BUFSIZE];
         strcpy(path_var, serve_dir);
         strcat(path_var, temp);
-        printf("%s\n", path_var);
+
         if (write_http_response(client_fd, path_var) == -1) {
             fprintf(stderr, "write_http_request");
             close(client_fd);
             pthread_exit((void *) 1);
         }
-        printf("Finished Writing command: %s :\n", path_var);
+
         if (close(client_fd) == -1) {
             perror("close");
             pthread_exit((void *) 1);
@@ -81,9 +80,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // First argument is directory to serve, second is port
     if (argc != 3) {
-        printf("Usage: %s <directory> <port>\n", argv[0]);
         return 1;
     }
     // Uncomment the lines below to use these definitions:
@@ -193,7 +190,6 @@ int main(int argc, char **argv) {
     }
 
     while (keep_going) {
-        printf("accept, keep_going = %d\n", keep_going);
         int client_fd = accept(sockfd, NULL, NULL);
         if (client_fd == -1) {
             if (errno != EINTR) {
@@ -210,7 +206,7 @@ int main(int argc, char **argv) {
                 break;
             }
         }
-        printf("pre-enqueue\n");
+
         if (connection_queue_enqueue(&queue, client_fd) == -1) {
             perror("connection_queue_enqueue");
             connection_queue_shutdown(&queue);
@@ -222,19 +218,8 @@ int main(int argc, char **argv) {
             close(sockfd);
             return 1;
         }
-        printf("enqueue finished\n");
-
-        // if (close(client_fd) == -1) {
-        //     perror("close");
-        //     close(sockfd);
-        //     for (int j = 0; j < N_THREADS; j++) {
-        //         pthread_join(threads[j], NULL);
-        //     }
-        //     free(threads);
-        //     return 1;
-        // }
     }
-    printf("shutdown\n");
+
     if (connection_queue_shutdown(&queue) == -1) {
         perror("connection_queue_shutdown");
         for (int j = 0; j < N_THREADS; j++) {
@@ -246,7 +231,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    printf("join\n");
     for (int i = 0; i < N_THREADS; i++) {
         int result = pthread_join(threads[i], NULL);
         if (result != 0) {
@@ -259,12 +243,10 @@ int main(int argc, char **argv) {
             close(sockfd);
             return 1;
         }
-        printf("thread # %d joined\n", i);
     }
-    printf("pthread join\n");
+
     free(threads);
 
-    printf("connection free\n");
     if (connection_queue_free(&queue) == -1) {
         perror("connection_queue_free");
         close(sockfd);
@@ -276,6 +258,5 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // TODO Complete the rest of this function
     return 0;
 }

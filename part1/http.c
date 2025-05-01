@@ -57,8 +57,6 @@ int read_http_request(int fd, char *resource_name) {
 }
 
 int write_http_response(int fd, const char *resource_path) {
-    // TODO Not yet implemented
-
     char buf[BUFSIZE];
     memset(buf, 0, BUFSIZE);
 
@@ -72,7 +70,6 @@ int write_http_response(int fd, const char *resource_path) {
     char extens[6];
     memset(extens, 0, 6);
     snprintf(extens, 6, ".%s", portion);
-    // const char *content_type = get_mime_type(extens);
 
     struct stat stat_buf;
 
@@ -100,7 +97,8 @@ int write_http_response(int fd, const char *resource_path) {
         perror("write");
         return -1;
     }
-    // following sourced from simple_http_client.c, from the lecture code.
+
+    // following sourced/based from simple_http_client.c, from the lecture code.
     int file_fd = open(resource_path, O_RDONLY, S_IRUSR);
     if (file_fd == -1) {
         perror("open");

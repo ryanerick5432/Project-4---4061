@@ -124,6 +124,6 @@ int main(int argc, char **argv) {
         perror("close");
         return 1;
     }
-    // TODO Complete the rest of this function
+
     return 0;
 }
