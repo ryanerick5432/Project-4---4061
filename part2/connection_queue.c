@@ -39,7 +39,7 @@ int connection_queue_enqueue(connection_queue_t *queue, int connection_fd) {
         return -1;
     }
 
-    while (queue->length == CAPACITY) {
+    while ((queue->length == CAPACITY) && (queue->shutdown == 0)) {
         if ((result = pthread_cond_wait(&(queue->queue_full), &(queue->lock))) == -1) {
             fprintf(stderr, "pthread_cond_wait: %s\n", strerror(result));
             return -1;
@@ -68,6 +68,9 @@ int connection_queue_enqueue(connection_queue_t *queue, int connection_fd) {
         fprintf(stderr, "pthread_cond_unlock: %s\n", strerror(result));
         return -1;
     }
+    printf("queue length after enqueue: %d\n", queue->length);
+    printf("%d, %d, %d, %d, %d\n", queue->client_fds[0], queue->client_fds[1], queue->client_fds[2],
+           queue->client_fds[3], queue->client_fds[4]);
     return 0;
 }
 
@@ -78,35 +81,28 @@ int connection_queue_dequeue(connection_queue_t *queue) {
         return -1;
     }
 
-    while (queue->length == 0) {
+    while ((queue->length <= 0) && (queue->shutdown == 0)) {
         if ((result = pthread_cond_wait(&(queue->queue_empty), &(queue->lock))) == -1) {
             fprintf(stderr, "pthread_cond_wait: %s\n", strerror(result));
             return -1;
         }
     }
 
-    if (queue->length == 0) {
-        if (queue->shutdown == 1) {
-            return -1;
-        }
-    }
-
-    int q_size = 0;
-    if (queue->length == 5) {
-        q_size = 1;
+    if (queue->shutdown == 1) {
+        return -1;
     }
 
     int temp_fd = 0;
     temp_fd = queue->client_fds[queue->read_idx];
+    queue->client_fds[queue->read_idx] = -1;
+    queue->length--;
     if (queue->read_idx == 4) {
         queue->read_idx = 0;
     } else {
         queue->read_idx++;
     }
-    queue->client_fds[queue->read_idx] = -1;
-    queue->length--;
 
-    if ((q_size == 1) && (result = pthread_cond_signal(&(queue->queue_full))) == -1) {
+    if ((result = pthread_cond_signal(&(queue->queue_full))) == -1) {
         fprintf(stderr, "pthread_cond_signal: %s\n", strerror(result));
         pthread_mutex_unlock(&queue->lock);
         return -1;
@@ -116,7 +112,9 @@ int connection_queue_dequeue(connection_queue_t *queue) {
         fprintf(stderr, "pthread_cond_unlock: %s\n", strerror(result));
         return -1;
     }
-
+    printf("queue length after dequeue: %d\n", queue->length);
+    printf("%d, %d, %d, %d, %d\n", queue->client_fds[0], queue->client_fds[1], queue->client_fds[2],
+           queue->client_fds[3], queue->client_fds[4]);
     return temp_fd;
 }
 

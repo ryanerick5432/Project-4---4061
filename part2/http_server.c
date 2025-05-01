@@ -27,43 +27,46 @@ void handle_sigint(int signo) {
 }
 
 void *thread_func(void *arg) {
-    connection_queue_t *queue = (connection_queue_t *) arg;
-    int client_fd = connection_queue_dequeue(queue);
-    if (client_fd == -1) {
-        pthread_exit((void *) 1);
-    }
+    while (keep_going == 1) {
+        connection_queue_t *queue = (connection_queue_t *) arg;
+        printf("start thread\n");
 
-    char temp[BUFSIZE];
-    if (read_http_request(client_fd, temp) == -1) {
-        if (strlen(temp) < 3) {
-            strcpy(temp, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+        int client_fd = connection_queue_dequeue(queue);
+        if (client_fd == -1) {
+            pthread_exit((void *) 1);
+        }
 
-            if (write(client_fd, temp, strlen(temp)) == -1) {
-                perror("write");
+        char temp[BUFSIZE];
+        if (read_http_request(client_fd, temp) == -1) {
+            if (strlen(temp) < 3) {
+                strcpy(temp, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+
+                if (write(client_fd, temp, strlen(temp)) == -1) {
+                    perror("write");
+                    pthread_exit((void *) 1);
+                }
+                pthread_exit((void *) 0);
+            } else {
+                fprintf(stderr, "read_http_request");
+                close(client_fd);
                 pthread_exit((void *) 1);
             }
-            pthread_exit((void *) 0);
-        } else {
-            fprintf(stderr, "read_http_request");
+        }
+        char path_var[BUFSIZE];
+        strcpy(path_var, serve_dir);
+        strcat(path_var, temp);
+        printf("%s\n", path_var);
+        if (write_http_response(client_fd, path_var) == -1) {
+            fprintf(stderr, "write_http_request");
             close(client_fd);
             pthread_exit((void *) 1);
         }
+        printf("Finished Writing command: %s :\n", path_var);
+        if (close(client_fd) == -1) {
+            perror("close");
+            pthread_exit((void *) 1);
+        }
     }
-    char path_var[BUFSIZE];
-    strcpy(path_var, serve_dir);
-    strcat(path_var, temp);
-
-    if (write_http_response(client_fd, path_var) == -1) {
-        fprintf(stderr, "write_http_request");
-        close(client_fd);
-        pthread_exit((void *) 1);
-    }
-
-    if (close(client_fd) == -1) {
-        perror("close");
-        pthread_exit((void *) 1);
-    }
-
     return NULL;
 }
 
@@ -186,6 +189,7 @@ int main(int argc, char **argv) {
     }
 
     while (keep_going) {
+        // printf("accept\n");
         int client_fd = accept(sockfd, NULL, NULL);
         if (client_fd == -1) {
             if (errno != EINTR) {
@@ -202,7 +206,7 @@ int main(int argc, char **argv) {
                 break;
             }
         }
-
+        // printf("enqueue\n");
         if (connection_queue_enqueue(&queue, client_fd) == -1) {
             perror("connection_queue_enqueue");
             close(sockfd);
@@ -225,7 +229,7 @@ int main(int argc, char **argv) {
         //     return 1;
         // }
     }
-
+    // printf("shutdown");
     if (connection_queue_shutdown(&queue) == -1) {
         perror("connection_queue_shutdown");
         close(sockfd);
@@ -236,7 +240,7 @@ int main(int argc, char **argv) {
         connection_queue_free(&queue);
         return 1;
     }
-
+    // printf("free\n");
     if (connection_queue_free(&queue) == -1) {
         perror("connection_queue_free");
         close(sockfd);
@@ -246,7 +250,7 @@ int main(int argc, char **argv) {
         free(threads);
         return 1;
     }
-
+    // printf("join");
     for (int i = 0; i < N_THREADS; i++) {
         int result = pthread_join(threads[i], NULL);
         if (result != 0) {
@@ -256,6 +260,7 @@ int main(int argc, char **argv) {
             }
             free(threads);
             close(sockfd);
+            return 1;
         }
     }
 
