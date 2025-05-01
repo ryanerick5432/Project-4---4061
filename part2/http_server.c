@@ -29,7 +29,7 @@ void handle_sigint(int signo) {
 void *thread_func(void *arg) {
     while (keep_going == 1) {
         connection_queue_t *queue = (connection_queue_t *) arg;
-        // printf("start thread\n");
+        printf("start thread\n");
 
         int client_fd = connection_queue_dequeue(queue);
         if (client_fd == -1) {
@@ -37,6 +37,7 @@ void *thread_func(void *arg) {
         }
 
         char temp[BUFSIZE];
+        printf("start read\n");
         if (read_http_request(client_fd, temp) == -1) {
             if (strlen(temp) < 3) {
                 strcpy(temp, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
@@ -55,13 +56,13 @@ void *thread_func(void *arg) {
         char path_var[BUFSIZE];
         strcpy(path_var, serve_dir);
         strcat(path_var, temp);
-        // printf("%s\n", path_var);
+        printf("%s\n", path_var);
         if (write_http_response(client_fd, path_var) == -1) {
             fprintf(stderr, "write_http_request");
             close(client_fd);
             pthread_exit((void *) 1);
         }
-        // printf("Finished Writing command: %s :\n", path_var);
+        printf("Finished Writing command: %s :\n", path_var);
         if (close(client_fd) == -1) {
             perror("close");
             pthread_exit((void *) 1);
@@ -73,6 +74,7 @@ void *thread_func(void *arg) {
 int main(int argc, char **argv) {
     struct sigaction sa;
     sa.sa_handler = handle_sigint;
+    sa.sa_flags = 0;
 
     if (sigaction(SIGINT, &sa, NULL) == -1) {
         perror("sigaction");
@@ -120,8 +122,8 @@ int main(int argc, char **argv) {
         perror("bind");
         connection_queue_shutdown(&queue);
         connection_queue_free(&queue);
-        close(sockfd);
         freeaddrinfo(&hints);
+        close(sockfd);
         return 1;
     }
 
@@ -142,6 +144,7 @@ int main(int argc, char **argv) {
         connection_queue_shutdown(&queue);
         connection_queue_free(&queue);
         close(sockfd);
+        return 1;
     }
     if (sigprocmask(SIG_BLOCK, &mask, &oldm) == -1) {
         perror("sigprocmask");
@@ -165,59 +168,61 @@ int main(int argc, char **argv) {
         int result = pthread_create(threads + i, NULL, thread_func, &queue);
         if (result != 0) {
             fprintf(stderr, "pthread_create failed: %s\n", strerror(result));
-            close(sockfd);
             connection_queue_shutdown(&queue);
-            connection_queue_free(&queue);
             for (int j = 0; j < i; j++) {
                 pthread_join(threads[j], NULL);
             }
             free(threads);
+            connection_queue_free(&queue);
+            close(sockfd);
+
             return 1;
         }
     }
 
     if (sigprocmask(SIG_SETMASK, &oldm, NULL) == -1) {
         perror("sigprocmask");
-        close(sockfd);
-        connection_queue_shutdown(&queue);
         connection_queue_free(&queue);
         for (int j = 0; j < N_THREADS; j++) {
             pthread_join(threads[j], NULL);
         }
         free(threads);
+        connection_queue_shutdown(&queue);
+        close(sockfd);
         return 1;
     }
 
     while (keep_going) {
-        // printf("accept\n");
+        printf("accept, keep_going = %d\n", keep_going);
         int client_fd = accept(sockfd, NULL, NULL);
         if (client_fd == -1) {
             if (errno != EINTR) {
                 perror("accept");
-                close(sockfd);
                 connection_queue_shutdown(&queue);
-                connection_queue_free(&queue);
                 for (int j = 0; j < N_THREADS; j++) {
                     pthread_join(threads[j], NULL);
                 }
                 free(threads);
+                connection_queue_free(&queue);
+                close(sockfd);
                 return 1;
             } else {
                 break;
             }
         }
-        // printf("enqueue\n");
+        printf("pre-enqueue\n");
         if (connection_queue_enqueue(&queue, client_fd) == -1) {
             perror("connection_queue_enqueue");
-            close(sockfd);
             connection_queue_shutdown(&queue);
-            connection_queue_free(&queue);
             for (int j = 0; j < N_THREADS; j++) {
                 pthread_join(threads[j], NULL);
             }
             free(threads);
+            connection_queue_free(&queue);
+            close(sockfd);
             return 1;
         }
+        printf("enqueue finished\n");
 
         // if (close(client_fd) == -1) {
         //     perror("close");
@@ -229,28 +234,19 @@ int main(int argc, char **argv) {
         //     return 1;
         // }
     }
-    // printf("shutdown");
+    printf("shutdown\n");
     if (connection_queue_shutdown(&queue) == -1) {
         perror("connection_queue_shutdown");
-        close(sockfd);
         for (int j = 0; j < N_THREADS; j++) {
             pthread_join(threads[j], NULL);
         }
         free(threads);
         connection_queue_free(&queue);
-        return 1;
-    }
-    // printf("free\n");
-    if (connection_queue_free(&queue) == -1) {
-        perror("connection_queue_free");
         close(sockfd);
-        for (int j = 0; j < N_THREADS; j++) {
-            pthread_join(threads[j], NULL);
-        }
-        free(threads);
         return 1;
     }
-    // printf("join");
+
+    printf("join\n");
     for (int i = 0; i < N_THREADS; i++) {
         int result = pthread_join(threads[i], NULL);
         if (result != 0) {
@@ -259,12 +255,21 @@ int main(int argc, char **argv) {
                 pthread_join(threads[j], NULL);
             }
             free(threads);
+            connection_queue_free(&queue);
             close(sockfd);
             return 1;
         }
+        printf("thread # %d joined\n", i);
     }
-
+    printf("pthread join\n");
     free(threads);
+
+    printf("connection free\n");
+    if (connection_queue_free(&queue) == -1) {
+        perror("connection_queue_free");
+        close(sockfd);
+        return 1;
+    }
 
     if (close(sockfd) == -1) {
         perror("close");

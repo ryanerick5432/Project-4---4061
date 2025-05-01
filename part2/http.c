@@ -57,7 +57,7 @@ int read_http_request(int fd, char *resource_name) {
 }
 
 int write_http_response(int fd, const char *resource_path) {
-    // printf("test3\n");
+    printf("write: %s\n", resource_path);
     char buf[BUFSIZE];
     memset(buf, 0, BUFSIZE);
 
@@ -94,18 +94,21 @@ int write_http_response(int fd, const char *resource_path) {
 
     snprintf(buf, BUFSIZE, "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n",
              get_mime_type(extens), content_length);
-
+    printf("message sent\n");
     if (write(fd, buf, strlen(buf)) == -1) {
         perror("write");
         return -1;
     }
+    printf("finished write to file\n");
     // following sourced from simple_http_client.c, from the lecture code.
+    printf("pre file open\n");
     int file_fd = open(resource_path, O_RDONLY, S_IRUSR);
     if (file_fd == -1) {
+        printf("open file errored \n");
         perror("open");
         return -1;
     }
-
+    printf("file opened\n");
     int bytes_read;
     // printf("test\n");
     while ((bytes_read = read(file_fd, buf, BUFSIZE)) > 0) {
@@ -115,6 +118,7 @@ int write_http_response(int fd, const char *resource_path) {
             return -1;
         }
     }
+    printf("fully read\n");
     // printf("test2\n");
     if (bytes_read == -1) {
         perror("read");
