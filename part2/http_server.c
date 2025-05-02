@@ -39,7 +39,7 @@ void *thread_func(void *arg) {
 
         if (read_http_request(client_fd, temp) == -1) {
             if (strlen(temp) < 3) {
-                strcpy(temp, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+                strncpy(temp, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n", BUFSIZE);
 
                 if (write(client_fd, temp, strlen(temp)) == -1) {
                     perror("write");
@@ -53,7 +53,7 @@ void *thread_func(void *arg) {
             }
         }
         char path_var[BUFSIZE];
-        strcpy(path_var, serve_dir);
+        strncpy(path_var, serve_dir, BUFSIZE);
         strcat(path_var, temp);
 
         if (write_http_response(client_fd, path_var) == -1) {
