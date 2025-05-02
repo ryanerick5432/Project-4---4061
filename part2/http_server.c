@@ -28,19 +28,25 @@ void handle_sigint(int signo) {
 
 void *thread_func(void *arg) {
     while (keep_going == 1) {
+        // cast void* to connection_queue_t*
         connection_queue_t *queue = (connection_queue_t *) arg;
 
+        // dequeue fd
         int client_fd = connection_queue_dequeue(queue);
+        // make sure its not an "empty" fd
         if (client_fd == -1) {
             pthread_exit((void *) 1);
         }
 
         char temp[BUFSIZE];
 
+        // read http request from client_fd
         if (read_http_request(client_fd, temp) == -1) {
+            // check if real request -> should have a len > 3 at least
             if (strlen(temp) < 3) {
                 strncpy(temp, "HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\n\r\n", BUFSIZE);
 
+                // if not real request -> write 404 response
                 if (write(client_fd, temp, strlen(temp)) == -1) {
                     perror("write");
                     pthread_exit((void *) 1);
@@ -54,14 +60,17 @@ void *thread_func(void *arg) {
         }
         char path_var[BUFSIZE];
         strncpy(path_var, serve_dir, BUFSIZE);
+        // strcat in order to put together path
         strcat(path_var, temp);
 
+        // write put_together path back to client (serverfiles_x)
         if (write_http_response(client_fd, path_var) == -1) {
             fprintf(stderr, "write_http_request");
             close(client_fd);
             pthread_exit((void *) 1);
         }
 
+        // close fd
         if (close(client_fd) == -1) {
             perror("close");
             pthread_exit((void *) 1);
@@ -71,10 +80,12 @@ void *thread_func(void *arg) {
 }
 
 int main(int argc, char **argv) {
+    // set up signal handler to be handle_sigint
     struct sigaction sa;
     sa.sa_handler = handle_sigint;
     sa.sa_flags = 0;
 
+    // add interrupt to be handled
     if (sigaction(SIGINT, &sa, NULL) == -1) {
         perror("sigaction");
         return 1;
@@ -88,17 +99,20 @@ int main(int argc, char **argv) {
     const char *port = argv[2];
 
     connection_queue_t queue;
+    // intialize queue
     if (connection_queue_init(&queue) == -1) {
         fprintf(stderr, "init");
         return 1;
     }
 
+    // set up addrinfo
     struct addrinfo hints;
     memset(&hints, 0, sizeof(struct addrinfo));
     struct addrinfo *server;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_UNSPEC;
 
+    // getaddrinfo given port and server
     if (getaddrinfo(NULL, port, &hints, &server) == -1) {
         perror("getaddrinfo");
         connection_queue_shutdown(&queue);
@@ -107,6 +121,7 @@ int main(int argc, char **argv) {
     }
 
     int sockfd;
+    // set up socket using server info
     if ((sockfd = socket(server->ai_family, server->ai_socktype, server->ai_protocol)) == -1) {
         perror("socket");
         connection_queue_shutdown(&queue);
@@ -115,6 +130,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // bind to socket
     if (bind(sockfd, server->ai_addr, server->ai_addrlen) == -1) {
         perror("bind");
         connection_queue_shutdown(&queue);
@@ -126,6 +142,7 @@ int main(int argc, char **argv) {
 
     freeaddrinfo(server);
 
+    // listen to socket
     if (listen(sockfd, LISTEN_QUEUE_LEN) == -1) {
         perror("listen");
         connection_queue_shutdown(&queue);
@@ -134,6 +151,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // before making threads set a new signal mask
+    // created threads will inherit new mask which should block all signals
     sigset_t mask;
     sigset_t oldm;
     if (sigfillset(&mask) == -1) {
@@ -143,6 +162,7 @@ int main(int argc, char **argv) {
         close(sockfd);
         return 1;
     }
+    // save old mask to reset in main thread
     if (sigprocmask(SIG_BLOCK, &mask, &oldm) == -1) {
         perror("sigprocmask");
         connection_queue_shutdown(&queue);
@@ -151,6 +171,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // malloc space for threads about to be created
     pthread_t *threads = malloc(N_THREADS * sizeof(pthread_t));
 
     if (threads == NULL) {
@@ -161,6 +182,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // create threads to start in thread_func
     for (long i = 0; i < N_THREADS; i++) {
         int result = pthread_create(threads + i, NULL, thread_func, &queue);
         if (result != 0) {
@@ -177,6 +199,7 @@ int main(int argc, char **argv) {
         }
     }
 
+    // set signal mask back to old one
     if (sigprocmask(SIG_SETMASK, &oldm, NULL) == -1) {
         perror("sigprocmask");
         connection_queue_free(&queue);
@@ -190,8 +213,10 @@ int main(int argc, char **argv) {
     }
 
     while (keep_going) {
+        // accept connections
         int client_fd = accept(sockfd, NULL, NULL);
         if (client_fd == -1) {
+            // i
             if (errno != EINTR) {
                 perror("accept");
                 connection_queue_shutdown(&queue);
@@ -203,10 +228,12 @@ int main(int argc, char **argv) {
                 close(sockfd);
                 return 1;
             } else {
+                // if stopped by a signal (EINTR) -> then break loop
                 break;
             }
         }
 
+        // enqueue client_fd
         if (connection_queue_enqueue(&queue, client_fd) == -1) {
             perror("connection_queue_enqueue");
             connection_queue_shutdown(&queue);
@@ -220,6 +247,7 @@ int main(int argc, char **argv) {
         }
     }
 
+    // shutdown connection queue
     if (connection_queue_shutdown(&queue) == -1) {
         perror("connection_queue_shutdown");
         for (int j = 0; j < N_THREADS; j++) {
@@ -231,6 +259,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // make sure all threads end (pthread_join)
     for (int i = 0; i < N_THREADS; i++) {
         int result = pthread_join(threads[i], NULL);
         if (result != 0) {
@@ -247,12 +276,14 @@ int main(int argc, char **argv) {
 
     free(threads);
 
+    // free queue
     if (connection_queue_free(&queue) == -1) {
         perror("connection_queue_free");
         close(sockfd);
         return 1;
     }
 
+    // close main socket
     if (close(sockfd) == -1) {
         perror("close");
         return 1;
